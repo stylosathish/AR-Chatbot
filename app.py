@@ -10,10 +10,17 @@ app = Flask(__name__)
 
 CORS(app)
 
+# =========================
+# GLOBAL VARIABLES
+# =========================
+
 KEYWORD_MAP = {}
 
 EXCEL_FILE = "mapping.xlsx"
 
+# =========================
+# LOAD EXCEL
+# =========================
 
 def load_excel():
 
@@ -29,6 +36,7 @@ def load_excel():
 
             bucket = str(row["Bucket Name"]).strip()
 
+            # MAIN KEYWORDS
             keyword = str(row["Keyword"]).lower()
 
             if keyword and keyword != "nan":
@@ -40,6 +48,7 @@ def load_excel():
                     if k:
                         KEYWORD_MAP[k] = bucket
 
+            # ALTERNATE KEYWORDS
             if "Alternate Keywords" in df.columns:
 
                 alt = str(
@@ -55,9 +64,12 @@ def load_excel():
                         if k:
                             KEYWORD_MAP[k] = bucket
 
-
+# LOAD ON STARTUP
 load_excel()
 
+# =========================
+# HOME
+# =========================
 
 @app.route("/")
 def home():
@@ -67,6 +79,9 @@ def home():
         "status": "success"
     })
 
+# =========================
+# HEALTH CHECK
+# =========================
 
 @app.route("/health")
 def health():
@@ -77,6 +92,9 @@ def health():
         "excel_exists": os.path.exists(EXCEL_FILE)
     })
 
+# =========================
+# UPLOAD EXCEL
+# =========================
 
 @app.route(
     "/upload-excel",
@@ -118,6 +136,9 @@ def upload_excel():
             "error": str(e)
         }), 500
 
+# =========================
+# GET MAPPING
+# =========================
 
 @app.route(
     "/get-mapping",
@@ -214,6 +235,7 @@ def find_bucket_from_excel(text):
     return None
 
 
+
 def analyze_correspondence(text):
 
     text = text.lower()
@@ -285,6 +307,7 @@ def analyze_correspondence(text):
             "Insurance Follow-up"
         ]
     }
+
 
 
 @app.route(
@@ -385,6 +408,9 @@ def routes():
 
     return jsonify(routes_list)
 
+# =========================
+# RUN SERVER
+# =========================
 
 if __name__ == "__main__":
 
