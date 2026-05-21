@@ -7,22 +7,18 @@ import os
 from database import save_history, find_previous_match
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
 
-# =========================
-# GLOBAL VARIABLES
-# =========================
+CORS(app)
 
 KEYWORD_MAP = {}
+
 EXCEL_FILE = "mapping.xlsx"
 
-# =========================
-# LOAD EXCEL
-# =========================
 
 def load_excel():
 
     global KEYWORD_MAP
+
     KEYWORD_MAP = {}
 
     if os.path.exists(EXCEL_FILE):
@@ -33,9 +29,6 @@ def load_excel():
 
             bucket = str(row["Bucket Name"]).strip()
 
-            # -------------------------
-            # MAIN KEYWORDS
-            # -------------------------
             keyword = str(row["Keyword"]).lower()
 
             if keyword and keyword != "nan":
@@ -47,12 +40,11 @@ def load_excel():
                     if k:
                         KEYWORD_MAP[k] = bucket
 
-            # -------------------------
-            # ALTERNATE KEYWORDS
-            # -------------------------
             if "Alternate Keywords" in df.columns:
 
-                alt = str(row["Alternate Keywords"]).lower()
+                alt = str(
+                    row["Alternate Keywords"]
+                ).lower()
 
                 if alt and alt != "nan":
 
@@ -64,33 +56,17 @@ def load_excel():
                             KEYWORD_MAP[k] = bucket
 
 
-# =========================
-# LOAD ON STARTUP
-# =========================
-
 load_excel()
 
-# =========================
-# HOME
-# =========================
 
 @app.route("/")
 def home():
 
     return jsonify({
         "message": "AR Backend Running Successfully",
-        "status": "success",
-        "apis": {
-            "upload_excel": "/upload-excel",
-            "get_mapping": "/get-mapping",
-            "save_mapping": "/save-mapping",
-            "analyze": "/analyze"
-        }
+        "status": "success"
     })
 
-# =========================
-# HEALTH CHECK
-# =========================
 
 @app.route("/health")
 def health():
@@ -101,11 +77,11 @@ def health():
         "excel_exists": os.path.exists(EXCEL_FILE)
     })
 
-# =========================
-# UPLOAD EXCEL
-# =========================
 
-@app.route("/upload-excel", methods=["POST"])
+@app.route(
+    "/upload-excel",
+    methods=["POST"]
+)
 def upload_excel():
 
     global KEYWORD_MAP
@@ -113,6 +89,7 @@ def upload_excel():
     try:
 
         if "file" not in request.files:
+
             return jsonify({
                 "error": "No file uploaded"
             }), 400
@@ -120,6 +97,7 @@ def upload_excel():
         file = request.files["file"]
 
         if file.filename == "":
+
             return jsonify({
                 "error": "Empty filename"
             }), 400
@@ -140,11 +118,11 @@ def upload_excel():
             "error": str(e)
         }), 500
 
-# =========================
-# GET MAPPING
-# =========================
 
-@app.route("/get-mapping", methods=["GET"])
+@app.route(
+    "/get-mapping",
+    methods=["GET"]
+)
 def get_mapping():
 
     try:
@@ -157,11 +135,14 @@ def get_mapping():
             })
 
         df = pd.read_excel(EXCEL_FILE)
+
         df = df.fillna("")
 
         return jsonify({
             "total_rows": len(df),
-            "data": df.to_dict(orient="records")
+            "data": df.to_dict(
+                orient="records"
+            )
         })
 
     except Exception as e:
@@ -170,11 +151,11 @@ def get_mapping():
             "error": str(e)
         }), 500
 
-# =========================
-# SAVE MAPPING
-# =========================
 
-@app.route("/save-mapping", methods=["POST"])
+@app.route(
+    "/save-mapping",
+    methods=["POST"]
+)
 def save_mapping():
 
     global KEYWORD_MAP
@@ -184,13 +165,17 @@ def save_mapping():
         data = request.json
 
         if not data:
+
             return jsonify({
                 "error": "No data received"
             }), 400
 
         df = pd.DataFrame(data)
 
-        df.to_excel(EXCEL_FILE, index=False)
+        df.to_excel(
+            EXCEL_FILE,
+            index=False
+        )
 
         load_excel()
 
@@ -206,9 +191,6 @@ def save_mapping():
             "error": str(e)
         }), 500
 
-# =========================
-# FIND BUCKET FROM EXCEL
-# =========================
 
 def find_bucket_from_excel(text):
 
@@ -219,24 +201,22 @@ def find_bucket_from_excel(text):
     for keyword, bucket in KEYWORD_MAP.items():
 
         if keyword in text:
+
             matches.append(bucket)
 
     if matches:
-        return max(set(matches), key=matches.count)
+
+        return max(
+            set(matches),
+            key=matches.count
+        )
 
     return None
 
-# =========================
-# ANALYZE LOGIC
-# =========================
 
 def analyze_correspondence(text):
 
     text = text.lower()
-
-    # -------------------------
-    # EXCEL MATCH
-    # -------------------------
 
     excel_bucket = find_bucket_from_excel(text)
 
@@ -249,11 +229,11 @@ def analyze_correspondence(text):
             "keywords": []
         }
 
-    # -------------------------
-    # DEFAULT RULES
-    # -------------------------
-
-    if "return to sender" in text or "bad address" in text:
+    if (
+        "return to sender" in text
+        or
+        "bad address" in text
+    ):
 
         return {
             "bucket": "Bad Address",
@@ -265,7 +245,11 @@ def analyze_correspondence(text):
             ]
         }
 
-    elif "refund" in text or "overpayment" in text:
+    elif (
+        "refund" in text
+        or
+        "overpayment" in text
+    ):
 
         return {
             "bucket": "Refund Request",
@@ -277,7 +261,11 @@ def analyze_correspondence(text):
             ]
         }
 
-    elif "denied" in text or "not covered" in text:
+    elif (
+        "denied" in text
+        or
+        "not covered" in text
+    ):
 
         return {
             "bucket": "Denial",
@@ -289,10 +277,6 @@ def analyze_correspondence(text):
             ]
         }
 
-    # -------------------------
-    # FALLBACK
-    # -------------------------
-
     return {
         "bucket": "Insurance Bucket",
         "a1": "A1: Requires manual review.",
@@ -302,11 +286,11 @@ def analyze_correspondence(text):
         ]
     }
 
-# =========================
-# ANALYZE API
-# =========================
 
-@app.route("/analyze", methods=["POST", "OPTIONS"])
+@app.route(
+    "/analyze",
+    methods=["POST", "OPTIONS"]
+)
 def analyze():
 
     if request.method == "OPTIONS":
@@ -326,34 +310,36 @@ def analyze():
             }), 400
 
         username = data.get("username")
-        correspondence = data.get("correspondence")
 
-        if not username or not correspondence:
+        correspondence = data.get(
+            "correspondence"
+        )
+
+        if (
+            not username
+            or
+            not correspondence
+        ):
 
             return jsonify({
                 "error": "Username and correspondence required"
             }), 400
 
-        # -------------------------
-        # ANALYZE
-        # -------------------------
-
-        result = analyze_correspondence(correspondence)
-
-        # -------------------------
-        # CHECK PREVIOUS MATCH
-        # -------------------------
+        result = analyze_correspondence(
+            correspondence
+        )
 
         previous_match = find_previous_match(
             correspondence.lower()
         )
 
-        if previous_match and previous_match["user"] == username:
-            previous_match = None
+        if (
+            previous_match
+            and
+            previous_match["user"] == username
+        ):
 
-        # -------------------------
-        # SAVE HISTORY
-        # -------------------------
+            previous_match = None
 
         current_time = datetime.now().strftime(
             "%Y-%m-%d %I:%M:%S %p"
@@ -366,10 +352,6 @@ def analyze():
             a1=result["a1"],
             created_at=current_time
         )
-
-        # -------------------------
-        # FINAL RESPONSE
-        # -------------------------
 
         return jsonify({
             "status": "success",
@@ -387,28 +369,22 @@ def analyze():
             "error": str(e)
         }), 500
 
-# =========================
-# ALL ROUTES
-# =========================
 
 @app.route("/routes")
 def routes():
 
-    routes = []
+    routes_list = []
 
     for rule in app.url_map.iter_rules():
 
-        routes.append({
+        routes_list.append({
             "endpoint": rule.endpoint,
             "methods": list(rule.methods),
             "route": str(rule)
         })
 
-    return jsonify(routes)
+    return jsonify(routes_list)
 
-# =========================
-# RUN SERVER
-# =========================
 
 if __name__ == "__main__":
 
